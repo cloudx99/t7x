@@ -1,11 +1,48 @@
 #include <std_include.hpp>
 #include "../steam.hpp"
 
+#include "../../game/game.hpp"
+
 #include "component/network.hpp"
 #include "component/server_list.hpp"
 
 namespace steam
 {
+	namespace
+	{
+		constexpr unsigned long long k_chat_room_enter_response_success = 1;
+		uint64_t global_lan_session_id = 0;
+
+		void enforce_lan_dvars()
+		{
+			game::Dvar_SetFromStringByName("lobby_forceLAN", "1", true);
+			game::Dvar_SetFromStringByName("live_forceLAN", "1", true);
+			game::Dvar_SetFromStringByName("sv_maxclients", "18", true);
+		}
+
+		steam_id make_lobby_id_from_session(const uint64_t session_id)
+		{
+			steam_id lobby{};
+			lobby.bits = session_id;
+
+			if (lobby.bits == 0)
+			{
+				lobby = SteamUser()->GetSteamID();
+			}
+
+			lobby.raw.universe = 1;
+			lobby.raw.account_type = 8;
+			lobby.raw.account_instance = 0x40000;
+			return lobby;
+		}
+	}
+
+	matchmaking::matchmaking()
+	{
+		enforce_lan_dvars();
+		global_lan_session_id = SteamUser()->GetSteamID().bits;
+	}
+
 	int matchmaking::GetFavoriteGameCount()
 	{
 		return 0;
@@ -37,7 +74,9 @@ namespace steam
 
 	unsigned long long matchmaking::RequestLobbyList()
 	{
-		return 0;
+		enforce_lan_dvars();
+		global_lan_session_id = SteamUser()->GetSteamID().bits;
+		return k_chat_room_enter_response_success;
 	}
 
 	void matchmaking::AddRequestLobbyListStringFilter(const char* pchKeyToMatch, const char* pchValueToMatch,
@@ -72,51 +111,21 @@ namespace steam
 
 	steam_id matchmaking::GetLobbyByIndex(int iLobby)
 	{
-		steam_id id;
-
-		id.raw.account_id = SteamUser()->GetSteamID().raw.account_id;
-		id.raw.universe = 1;
-		id.raw.account_type = 8;
-		id.raw.account_instance = 0x40000;
-
-		return id;
+		return make_lobby_id_from_session(global_lan_session_id);
 	}
 
 	unsigned long long matchmaking::CreateLobby(int eLobbyType, int cMaxMembers)
 	{
-		const auto result = callbacks::register_call();
-		auto retvals = static_cast<lobby_created*>(calloc(1, sizeof(lobby_created)));
-		//::Utils::Memory::AllocateArray<LobbyCreated>();
-		steam_id id;
-
-		id.raw.account_id = SteamUser()->GetSteamID().raw.account_id;
-		id.raw.universe = 1;
-		id.raw.account_type = 8;
-		id.raw.account_instance = 0x40000;
-
-		retvals->m_e_result = 1;
-		retvals->m_ul_steam_id_lobby = id;
-
-		callbacks::return_call(retvals, sizeof(lobby_created), lobby_created::callback_id, result);
-
-		matchmaking::JoinLobby(id);
-
-		return result;
+		enforce_lan_dvars();
+		global_lan_session_id = SteamUser()->GetSteamID().bits;
+		return k_chat_room_enter_response_success;
 	}
 
 	unsigned long long matchmaking::JoinLobby(steam_id steamIDLobby)
 	{
-		const auto result = callbacks::register_call();
-		auto* retvals = static_cast<lobby_enter*>(calloc(1, sizeof(lobby_enter)));
-		//::Utils::Memory::AllocateArray<LobbyEnter>();
-		retvals->m_b_locked = false;
-		retvals->m_e_chat_room_enter_response = 1;
-		retvals->m_rgf_chat_permissions = 0xFFFFFFFF;
-		retvals->m_ul_steam_id_lobby = steamIDLobby;
-
-		callbacks::return_call(retvals, sizeof(lobby_enter), lobby_enter::callback_id, result);
-
-		return result;
+		enforce_lan_dvars();
+		global_lan_session_id = steamIDLobby.bits ? steamIDLobby.bits : SteamUser()->GetSteamID().bits;
+		return k_chat_room_enter_response_success;
 	}
 
 	void matchmaking::LeaveLobby(steam_id steamIDLobby)
@@ -135,7 +144,7 @@ namespace steam
 
 	steam_id matchmaking::GetLobbyMemberByIndex(steam_id steamIDLobby, int iMember)
 	{
-		return SteamUser()->GetSteamID();
+		return make_lobby_id_from_session(global_lan_session_id);
 	}
 
 	const char* matchmaking::GetLobbyData(steam_id steamIDLobby, const char* pchKey)
@@ -222,7 +231,7 @@ namespace steam
 
 	steam_id matchmaking::GetLobbyOwner(steam_id steamIDLobby)
 	{
-		return SteamUser()->GetSteamID();
+		return make_lobby_id_from_session(global_lan_session_id);
 	}
 
 	bool matchmaking::SetLobbyOwner(steam_id steamIDLobby, steam_id steamIDNewOwner)

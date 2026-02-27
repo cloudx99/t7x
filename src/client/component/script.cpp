@@ -21,6 +21,33 @@ namespace script
 		utils::memory::allocator allocator;
 		std::unordered_map<std::string, game::RawFile*> loaded_scripts;
 
+		constexpr char lan_playlist_csv[] =
+			"id,name,max_party_size,max_local_players,rule_category\n"
+			"1,LAN,18,4,tdm\n";
+
+		game::RawFile lan_playlist_rawfile
+		{
+			"mp/playlists.csv",
+			static_cast<int>(sizeof(lan_playlist_csv) - 1),
+			lan_playlist_csv,
+		};
+
+		bool is_playlist_rawfile_request(const game::XAssetType type, const char* name)
+		{
+			if (!name)
+			{
+				return false;
+			}
+
+			const auto type_id = static_cast<int>(type);
+			if (type_id != 39 && type != game::ASSET_TYPE_RAWFILE)
+			{
+				return false;
+			}
+
+			return std::strstr(name, "playlists.csv") != nullptr || std::strstr(name, "core_playlists.csv") != nullptr;
+		}
+
 		game::RawFile* get_loaded_script(const std::string& name)
 		{
 			const auto itr = loaded_scripts.find(name);
@@ -164,6 +191,12 @@ namespace script
 		                                        const bool error_if_missing,
 		                                        const int wait_time)
 		{
+			if (is_playlist_rawfile_request(type, name))
+			{
+				lan_playlist_rawfile.name = name;
+				return &lan_playlist_rawfile;
+			}
+
 			auto* asset_header = db_find_x_asset_header_hook.invoke<game::RawFile*>(type, name, error_if_missing, wait_time);
 
 			if (type != game::ASSET_TYPE_SCRIPTPARSETREE)

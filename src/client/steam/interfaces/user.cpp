@@ -1,8 +1,6 @@
 #include <std_include.hpp>
 
 #include "../steam.hpp"
-#include "../../component/auth.hpp"
-
 
 namespace steam
 {
@@ -10,10 +8,42 @@ namespace steam
 	{
 		std::string auth_ticket;
 
+		uint32_t hash_machine_name()
+		{
+			char computer_name[MAX_COMPUTERNAME_LENGTH + 1]{};
+			DWORD computer_name_size = static_cast<DWORD>(std::size(computer_name));
+
+			if (!GetComputerNameA(computer_name, &computer_name_size) || computer_name_size == 0)
+			{
+				return 0x5F3759DFu;
+			}
+
+			uint32_t hash = 2166136261u;
+			for (DWORD index = 0; index < computer_name_size; ++index)
+			{
+				hash ^= static_cast<uint8_t>(computer_name[index]);
+				hash *= 16777619u;
+			}
+
+			return (hash == 0) ? 0xA5A5A5A5u : hash;
+		}
+
 		steam_id generate_steam_id()
 		{
 			steam_id id{};
-			id.bits = auth::get_guid();
+			id.raw.account_id = hash_machine_name();
+			id.raw.account_instance = 1;
+			id.raw.account_type = 1;
+			id.raw.universe = 1;
+
+			if (id.bits == 0)
+			{
+				id.raw.account_id = 0x13572468u;
+				id.raw.account_instance = 1;
+				id.raw.account_type = 1;
+				id.raw.universe = 1;
+			}
+
 			return id;
 		}
 	}
@@ -89,17 +119,19 @@ namespace steam
 	unsigned int user::GetAuthSessionTicket(void* pTicket, int cbMaxTicket, unsigned int* pcbTicket)
 	{
 		static uint32_t ticket = 0;
-		*pcbTicket = 1;
 
-		const auto result = callbacks::register_call();
-		auto* response = static_cast<get_auth_session_ticket_response*>(calloc(
-			1, sizeof(get_auth_session_ticket_response)));
-		response->m_h_auth_ticket = ++ticket;
-		response->m_e_result = 1; // k_EResultOK;
+		if (pcbTicket)
+		{
+			*pcbTicket = 1;
+		}
 
-		callbacks::return_call(response, sizeof(get_auth_session_ticket_response),
-		                       get_auth_session_ticket_response::callback_id, result);
-		return response->m_h_auth_ticket;
+		if (pTicket && cbMaxTicket > 0)
+		{
+			static constexpr uint8_t local_ticket_byte = 0x01;
+			std::memcpy(pTicket, &local_ticket_byte, 1);
+		}
+
+		return ++ticket;
 	}
 
 	int user::BeginAuthSession(const void* pAuthTicket, int cbAuthTicket, steam_id steamID)
@@ -139,18 +171,7 @@ namespace steam
 		auth_ticket.append(reinterpret_cast<const char*>(&id.bits), sizeof(id.bits)); // user id
 		auth_ticket.append(&static_cast<char*>(pUserData)[24], 64); // user name
 
-		// Create the call response
-		const auto result = callbacks::register_call();
-		const auto retvals = static_cast<encrypted_app_ticket_response*>(calloc(
-			1, sizeof(encrypted_app_ticket_response)));
-		//::Utils::Memory::AllocateArray<EncryptedAppTicketResponse>();
-		retvals->m_e_result = 1;
-
-		// Return the call response
-		callbacks::return_call(retvals, sizeof(encrypted_app_ticket_response),
-		                       encrypted_app_ticket_response::callback_id, result);
-
-		return result;
+		return 1;
 	}
 
 	bool user::GetEncryptedAppTicket(void* pTicket, int cbMaxTicket, unsigned int* pcbTicket)

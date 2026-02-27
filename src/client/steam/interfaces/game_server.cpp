@@ -32,9 +32,7 @@ namespace steam
 
 	void game_server::LogOnAnonymous()
 	{
-		auto* const retvals = calloc(1, 1);
-		const auto result = callbacks::register_call();
-		callbacks::return_call(retvals, 0, 101, result);
+		return;
 	}
 
 	void game_server::LogOff()

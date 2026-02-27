@@ -24,6 +24,7 @@ namespace steam
 	class matchmaking
 	{
 	public:
+		matchmaking();
 		~matchmaking() = default;
 
 		virtual int GetFavoriteGameCount();
