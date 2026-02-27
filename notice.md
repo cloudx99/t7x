@@ -11,3 +11,4 @@ It was also a agreed that this notice shall remain, informing the public that I 
 All the involved parties wish that any further attempts at creating a modded client for Black Ops 3 allocate time and effort into developing their own technology rather than utilizing boiii's source code.
 
 No other services provided by AlterWare are subject to change.
+p
